@@ -26,10 +26,19 @@ import re
 FONT_DIR = os.path.join(os.path.dirname(__file__), 'fonts')
 os.makedirs(FONT_DIR, exist_ok=True)
 
-class PDF(FPDF):
+cclass PDF(FPDF):
     def __init__(self):
         super().__init__()
-        self.add_font('DejaVu', '', os.path.join(FONT_DIR, 'DejaVuSans.ttf'), uni=True)
+        # Укажите абсолютный путь к шрифту
+        font_path = os.path.join(os.path.dirname(__file__), "fonts", "DejaVuSans.ttf")
+        self.add_font("DejaVu", "", font_path, uni=True)
+        self.set_font("DejaVu", size=12)  # Увеличьте размер при необходимости
+    
+    def safe_cell(self, w, h=0, txt="", border=0, ln=0, align="L"):
+        """Автоматически расширяет ячейку, если текст не помещается"""
+        if self.get_string_width(txt) > w:
+            w = self.get_string_width(txt) + 2  # +2 для запаса
+        self.cell(w, h, txt, border, ln, align)
         
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -363,10 +372,9 @@ def create_geographical_analysis(data):
 
 def create_pdf_report(data, variety, stats):
     """Создает PDF отчет с поддержкой Unicode"""
-    pdf = FPDF()
+    pdf = PDF()
     pdf.add_page()
-    pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
-    pdf.set_font('DejaVu', '', 12)
+    pdf.safe_cell(0, 10, "Ваш длинный текст с кириллицей", ln=1)
     
     # Заголовок
     pdf.cell(0, 10, f"Аналитический отчет по винам {variety}", 0, 1, 'C')
