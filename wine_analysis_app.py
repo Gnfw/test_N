@@ -98,16 +98,16 @@ class WinePDF(FPDF):
         super().__init__()
         try:
             # Добавляем шрифт с поддержкой кириллицы
-            self.add_font('Arial', '', 'arial.ttf', uni=True)
-            self.add_font('Arial', 'B', 'arialbd.ttf', uni=True)
-            self.add_font('Arial', 'I', 'ariali.ttf', uni=True)
-            self.add_font('Arial', 'BI', 'arialbi.ttf', uni=True)
+            self.add_font('Arial', '', 'fonts/arial.ttf', uni=True)
+            self.add_font('Arial', 'B', 'fonts/arialbd.ttf', uni=True)
+            self.add_font('Arial', 'I', 'fonts/ariali.ttf', uni=True)
+            self.add_font('Arial', 'BI', 'fonts/arialbi.ttf', uni=True)
             self.set_font("Arial", size=10)
         except Exception as e:
             logger.error(f"Ошибка загрузки шрифта Arial: {e}")
             try:
                 # Попробуем использовать DejaVu - часто предустановлен
-                self.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
+                self.add_font('DejaVu', '', 'fonts/DejaVuSans.ttf', uni=True)
                 self.set_font("DejaVu", size=10)
             except:
                 # Если ничего не работает, используем стандартный шрифт (но кириллица не будет отображаться)
@@ -780,6 +780,15 @@ def show_report_generation(filtered_data, variety):
                 st.error("Не удалось создать PDF отчет")
 
 def main():
+    if not all(os.path.exists(f) for f in [
+        'fonts/arial.ttf',
+        'fonts/arialbd.ttf',
+        'fonts/ariali.ttf',
+        'fonts/arialbi.ttf'
+    ]):
+        st.error("❌ Шрифты Arial не найдены в папке fonts/!")
+        return
+        
     st.title("🍷 Лучшая аналитическая (для получения корочки) система")
     st.markdown("### Которая анализирует то, что лучше пить, чем анализировать")
     
