@@ -93,81 +93,27 @@ FONT_PATH = "arial.ttf"
 # ============================================
 
 class WinePDF(FPDF):
-    """Класс для создания PDF отчетов с поддержкой кириллицы"""
+    """Облегченный PDF-генератор (только текст)"""
     def __init__(self):
         super().__init__()
         try:
-            # Добавляем шрифт с поддержкой кириллицы
+            # Пытаемся загрузить Arial, если нет — используем стандартный шрифт
             self.add_font('Arial', '', 'fonts/arial.ttf', uni=True)
-            self.add_font('Arial', 'B', 'fonts/arialbd.ttf', uni=True)
-            self.add_font('Arial', 'I', 'fonts/ariali.ttf', uni=True)
-            self.add_font('Arial', 'BI', 'fonts/arialbi.ttf', uni=True)
             self.set_font("Arial", size=10)
-        except Exception as e:
-            logger.error(f"Ошибка загрузки шрифта Arial: {e}")
-            try:
-                # Попробуем использовать DejaVu - часто предустановлен
-                self.add_font('DejaVu', '', 'fonts/DejaVuSans.ttf', uni=True)
-                self.set_font("DejaVu", size=10)
-            except:
-                # Если ничего не работает, используем стандартный шрифт (но кириллица не будет отображаться)
-                self.set_font("helvetica", size=10)
-                logger.error("Не удалось загрузить шрифт с поддержкой кириллицы. PDF будет без русских символов.")
-        
-    def header(self):
-        # Логотип и заголовок
-        self.set_font('Arial', 'B', 16)
-        self.cell(0, 10, 'Лучшая аналитическая система (для корочки)', 0, 1, 'C')
-        self.ln(5)
-        
-    def footer(self):
-        # Номер страницы
-        self.set_y(-15)
-        self.set_font('Arial', 'I', 8)
-        self.cell(0, 10, f'Страница {self.page_no()}', 0, 0, 'C')
-        
-    def safe_cell(self, w, h=0, txt="", border=0, ln=0, align="L"):
-        """Ячейка с автоматической подстройкой ширины"""
-        required_width = self.get_string_width(txt) + 2
-        effective_width = max(w, required_width)
-        self.cell(effective_width, h, txt, border, ln, align)
-        
-    def add_section_title(self, title, level=1):
-        """Добавление заголовка раздела"""
-        if level == 1:
-            self.set_font("Arial", 'B', 14)
-            self.cell(0, 10, title, ln=1)
-            self.ln(2)
-        elif level == 2:
-            self.set_font("Arial", 'B', 12)
-            self.cell(0, 8, title, ln=1)
-            self.ln(1)
-        else:
-            self.set_font("Arial", 'B', 10)
-            self.cell(0, 6, title, ln=1)
-        self.set_font("Arial", size=10)
-        
-    def add_plot(self, fig, title=None, width=180):
-        """Добавление графика в PDF"""
-        if fig is None:
-            return
-            
-        try:
-            # Сохраняем график во временный файл
-            temp_img = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-            fig.savefig(temp_img.name, bbox_inches='tight', dpi=100)
-            plt.close(fig)
-            
-            # Добавляем изображение в PDF
-            if title:
-                self.add_section_title(title, level=3)
-            self.image(temp_img.name, w=width)
-            self.ln(5)
-            
-            # Удаляем временный файл
-            os.unlink(temp_img.name)
-        except Exception as e:
-            logger.error(f"Ошибка добавления графика в PDF: {e}")
+        except:
+            self.set_font("helvetica", size=10)
+    
+    def chapter_title(self, title, level=1):
+        """Заголовки разделов"""
+        self.set_font('Arial', 'B', 14 if level == 1 else 12)
+        self.cell(0, 10, title, ln=1)
+        self.ln(2)
+    
+    def chapter_text(self, text):
+        """Основной текст"""
+        self.set_font('Arial', '', 10)
+        self.multi_cell(0, 8, text)
+        self.ln()
 
 # ============================================
 # ФУНКЦИИ ДЛЯ РАБОТЫ С ДАННЫМИ
@@ -488,133 +434,57 @@ def create_price_by_region_plot(data):
 # ГЕНЕРАЦИЯ PDF ОТЧЕТА
 # ============================================
 
+def generate_text_stats(data):
+    """Генерация текстовой статистики"""
+    stats = []
+    
+    # Основные метрики
+    stats.append("=== ОСНОВНЫЕ МЕТРИКИ ===")
+    stats.append(f"Всего записей: {len(data)}")
+    stats.append(f"Страны: {', '.join(data['Страна'].unique())}")
+    
+    # Статистика по странам
+    stats.append("\n=== СТАТИСТИКА ПО СТРАНАМ ===")
+    country_stats = data.groupby('Страна').agg({
+        'Рейтинг': ['mean', 'median', 'std'],
+        'Цена': ['mean', 'median', 'min', 'max']
+    }).round(1)
+    stats.append(country_stats.to_string())
+    
+    # Топ-5 вин
+    stats.append("\n=== ТОП-5 ВИН ===")
+    top_price = data.nlargest(5, 'Цена')[['Винодельня', 'Страна', 'Рейтинг', 'Цена']]
+    stats.append("Самые дорогие:\n" + top_price.to_string(index=False))
+    
+    top_rating = data.nlargest(5, 'Рейтинг')[['Винодельня', 'Страна', 'Рейтинг', 'Цена']]
+    stats.append("\nС наивысшим рейтингом:\n" + top_rating.to_string(index=False))
+    
+    return "\n".join(stats)
+
 def generate_pdf_report(data, variety):
-    """Генерация PDF отчета"""
+    """Генерация PDF (без графиков)"""
     try:
         pdf = WinePDF()
         pdf.add_page()
         
-        # Заголовок отчета
-        pdf.set_font("Arial", size=16, style='B')
-        pdf.cell(0, 10, f"Аналитический отчет: {variety}", ln=1, align="C")
+        # Заголовок
+        pdf.set_font('Arial', 'B', 16)
+        pdf.cell(0, 10, f"Анализ вин: {variety}", 0, 1, 'C')
         pdf.ln(10)
         
-        # 1. Основная статистика
-        pdf.add_section_title("1. Основная статистика", level=1)
+        # Добавляем текстовую статистику
+        pdf.chapter_title("Статистика", level=1)
+        pdf.chapter_text(generate_text_stats(data))
         
-        stats = data.groupby('Страна').agg({
-            'Рейтинг': ['mean', 'median', 'std', 'count'],
-            'Цена': ['mean', 'median', 'std', 'min', 'max']
-        }).reset_index()
+        # Дополнительные разделы (если есть данные)
+        if 'Описание' in data.columns:
+            pdf.chapter_title("Текстовая аналитика", level=1)
+            word_counts = pd.Series(' '.join(data['Описание'].dropna()).lower().split()).value_counts().head(10)
+            pdf.chapter_text("Частые слова в описаниях:\n" + word_counts.to_string())
         
-        stats_text = []
-        for _, row in stats.iterrows():
-            stats_text.append(
-                f"{row['Страна']}: "
-                f"Рейтинг {row[('Рейтинг', 'mean')]:.1f}±{row[('Рейтинг', 'std')]:.1f}, "
-                f"Цена ${row[('Цена', 'mean')]:.1f}±${row[('Цена', 'std')]:.1f}, "
-                f"Образцов: {int(row[('Рейтинг', 'count')])}"
-            )
-        
-        for line in stats_text:
-            pdf.safe_cell(0, 8, line, ln=1)
-        pdf.ln(5)
-        
-        # Топ вин
-        pdf.add_section_title("Топ-5 самых дорогих вин:", level=2)
-        top_wines = data.nlargest(5, 'Цена')[['Винодельня', 'Страна', 'Рейтинг', 'Цена']]
-        for _, row in top_wines.iterrows():
-            text = f"{row['Винодельня']} ({row['Страна']}): {row['Рейтинг']} баллов, ${row['Цена']:.2f}"
-            pdf.safe_cell(0, 8, text, ln=1)
-        
-        pdf.ln(5)
-        pdf.add_section_title("Топ-5 с наивысшим рейтингом:", level=2)
-        top_rated = data.nlargest(5, 'Рейтинг')[['Винодельня', 'Страна', 'Рейтинг', 'Цена']]
-        for _, row in top_rated.iterrows():
-            text = f"{row['Винодельня']} ({row['Страна']}): {row['Рейтинг']} баллов, ${row['Цена']:.2f}"
-            pdf.safe_cell(0, 8, text, ln=1)
-        
-        # 2. Основные графики
-        pdf.add_page()
-        pdf.add_section_title("2. Основные графики анализа", level=1)
-        
-        summary_fig = create_summary_plot(data, variety)
-        pdf.add_plot(summary_fig, "Сводные графики анализа")
-        
-        # 3. Текстовая аналитика
-        pdf.add_page()
-        pdf.add_section_title("3. Текстовая аналитика", level=1)
-        
-        wc_fig = create_wordcloud(data, variety)
-        pdf.add_plot(wc_fig, "Облако слов из описаний вин")
-        
-        sentiment_fig, sentiment_data = analyze_sentiment(data)
-        pdf.add_plot(sentiment_fig, "Анализ тональности описаний")
-        
-        if sentiment_data is not None:
-            pdf.add_section_title("Примеры описаний:", level=2)
-            
-            positive = sentiment_data.nlargest(3, 'sentiment')['Описание']
-            pdf.safe_cell(0, 8, "Самые положительные описания:", ln=1)
-            for i, desc in enumerate(positive, 1):
-                pdf.multi_cell(0, 8, f"{i}. {desc[:150]}...", ln=1)
-            
-            pdf.ln(2)
-            
-            negative = sentiment_data.nsmallest(3, 'sentiment')['Описание']
-            pdf.safe_cell(0, 8, "Самые отрицательные описания:", ln=1)
-            for i, desc in enumerate(negative, 1):
-                pdf.multi_cell(0, 8, f"{i}. {desc[:150]}...", ln=1)
-        
-        # 4. Географический анализ
-        pdf.add_page()
-        pdf.add_section_title("4. Географический анализ", level=1)
-        
-        geo_fig, geo_stats = create_geographical_analysis(data)
-        pdf.add_plot(geo_fig, "Географическое распределение")
-        
-        if geo_stats is not None:
-            pdf.add_section_title("Статистика по регионам:", level=2)
-            geo_stats_display = geo_stats.nlargest(10, 'Рейтинг')[['Регион', 'Страна', 'Рейтинг', 'Цена', 'Сорт']]
-            geo_stats_display.columns = ['Регион', 'Страна', 'Ср. рейтинг', 'Ср. цена', 'Количество']
-            
-            col_widths = [50, 30, 30, 30, 30]
-            headers = geo_stats_display.columns.tolist()
-            data_rows = geo_stats_display.values.tolist()
-            
-            pdf.set_font(style='B')
-            for i, header in enumerate(headers):
-                pdf.cell(col_widths[i], 10, str(header), border=1)
-            pdf.ln()
-            
-            pdf.set_font(style='')
-            for row in data_rows:
-                for i, item in enumerate(row):
-                    if i == 3:
-                        pdf.cell(col_widths[i], 10, f"${float(item):.2f}", border=1)
-                    elif i == 2:
-                        pdf.cell(col_widths[i], 10, f"{float(item):.1f}", border=1)
-                    else:
-                        pdf.cell(col_widths[i], 10, str(item), border=1)
-                pdf.ln()
-        
-        # 5. Дополнительные анализы
-        pdf.add_page()
-        pdf.add_section_title("5. Дополнительные анализы", level=1)
-        
-        pop_fig, pop_data = create_popular_varieties_plot(data)
-        pdf.add_plot(pop_fig, "Популярные сорта по регионам")
-        
-        price_fig, price_stats = create_price_stats_plot(data)
-        pdf.add_plot(price_fig, "Статистика цен по регионам")
-        
-        corr_fig, corr = create_correlation_plot(data)
-        pdf.add_plot(corr_fig, f"Корреляция между ценой и рейтингом (r = {corr:.2f})")
-        
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
-        pdf.output(temp_file.name)
-        return temp_file.name
-        
+        # Сохраняем PDF в память (без временных файлов)
+        return pdf.output(dest='S').encode('latin1')
+    
     except Exception as e:
         logger.error(f"Ошибка генерации PDF: {e}")
         return None
@@ -763,21 +633,27 @@ def show_geographical_analysis(filtered_data):
         st.warning("Недостаточно данных для географического анализа")
 
 def show_report_generation(filtered_data, variety):
-    st.header("Генерация отчета")
-    if st.button("🖨️ Создать PDF отчет"):
+    st.header("📄 Генерация отчета")
+    
+    # Превью текста
+    with st.expander("Предпросмотр отчета"):
+        st.text(generate_text_stats(filtered_data))
+    
+    # Кнопка генерации PDF
+    if st.button("🖨️ Создать PDF-отчет", type="primary"):
         with st.spinner("Формируем отчет..."):
-            pdf_path = generate_pdf_report(filtered_data, variety)
-            if pdf_path:
-                with open(pdf_path, "rb") as f:
-                    st.download_button(
-                        label="⬇️ Скачать отчет",
-                        data=f,
-                        file_name=f"wine_analysis_{variety}_{datetime.now().strftime('%Y%m%d')}.pdf",
-                        mime="application/pdf"
-                    )
-                os.unlink(pdf_path)
+            pdf_data = generate_pdf_report(filtered_data, variety)
+            
+            if pdf_data:
+                st.success("Готово!")
+                st.download_button(
+                    label="⬇️ Скачать PDF",
+                    data=pdf_data,
+                    file_name=f"wine_report_{variety}.pdf",
+                    mime="application/pdf"
+                )
             else:
-                st.error("Не удалось создать PDF отчет")
+                st.error("Ошибка генерации. Попробуйте уменьшить объем данных.")
 
 def main():
     if not all(os.path.exists(f) for f in [
