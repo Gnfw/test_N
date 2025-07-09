@@ -22,6 +22,15 @@ from fpdf import FPDF
 import base64
 import re
 
+# Установка пути к шрифтам
+FONT_DIR = os.path.join(os.path.dirname(__file__), 'fonts')
+os.makedirs(FONT_DIR, exist_ok=True)
+
+class PDF(FPDF):
+    def __init__(self):
+        super().__init__()
+        self.add_font('DejaVu', '', os.path.join(FONT_DIR, 'DejaVuSans.ttf'), uni=True)
+        
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
