@@ -1,14 +1,32 @@
 #!/bin/bash
 set -e
 
-# Установка шрифтов
-echo "--- Installing DejaVu fonts ---"
+# Установка шрифтов Arial
+echo "--- Installing Arial fonts ---"
 mkdir -p fonts
-if [ ! -f "fonts/DejaVuSans.ttf" ]; then
-    wget -q -O fonts/dejavu.zip https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip
-    unzip -q fonts/dejavu.zip -d fonts_temp
-    cp fonts_temp/dejavu-fonts-ttf-2.37/ttf/DejaVuSans.ttf fonts/
-    rm -rf fonts_temp dejavu.zip
+
+# Скачиваем Arial с Google Fonts
+if [ ! -f "fonts/arial.ttf" ]; then
+    echo "Скачиваем шрифты Arial..."
+    
+    # Скачиваем архив с Arial
+    wget -q -O arial.zip "https://fonts.google.com/download?family=Arial"
+    
+    # Распаковываем нужные файлы
+    unzip -j arial.zip "**/Arial-Regular.ttf" -d fonts/
+    unzip -j arial.zip "**/Arial-Bold.ttf" -d fonts/
+    unzip -j arial.zip "**/Arial-Italic.ttf" -d fonts/
+    unzip -j arial.zip "**/Arial-BoldItalic.ttf" -d fonts/
+    
+    # Переименовываем файлы в нужный формат
+    mv fonts/Arial-Regular.ttf fonts/arial.ttf
+    mv fonts/Arial-Bold.ttf fonts/arialbd.ttf
+    mv fonts/Arial-Italic.ttf fonts/ariali.ttf
+    mv fonts/Arial-BoldItalic.ttf fonts/arialbi.ttf
+    
+    # Удаляем временные файлы
+    rm -f arial.zip
+    echo "Шрифты Arial успешно установлены!"
 fi
 
 echo "=== Installing dependencies ==="
