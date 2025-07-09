@@ -1,39 +1,34 @@
 #!/bin/bash
 set -e
 
-# Установка шрифтов Arial
-echo "--- Installing Arial fonts ---"
-mkdir -p fonts
+# 1. Проверка шрифтов
+echo "--- Проверка шрифтов Arial ---"
+mkdir -p fonts  # На всякий случай создаём папку
 
-# Скачиваем Arial с Google Fonts
-if [ ! -f "fonts/arial.ttf" ]; then
-    echo "Скачиваем шрифты Arial..."
-    
-    # Скачиваем архив с Arial
-    wget -q -O arial.zip "https://fonts.google.com/download?family=Arial"
-    
-    # Распаковываем нужные файлы
-    unzip -j arial.zip "**/Arial-Regular.ttf" -d fonts/
-    unzip -j arial.zip "**/Arial-Bold.ttf" -d fonts/
-    unzip -j arial.zip "**/Arial-Italic.ttf" -d fonts/
-    unzip -j arial.zip "**/Arial-BoldItalic.ttf" -d fonts/
-    
-    # Переименовываем файлы в нужный формат
-    mv fonts/Arial-Regular.ttf fonts/arial.ttf
-    mv fonts/Arial-Bold.ttf fonts/arialbd.ttf
-    mv fonts/Arial-Italic.ttf fonts/ariali.ttf
-    mv fonts/Arial-BoldItalic.ttf fonts/arialbi.ttf
-    
-    # Удаляем временные файлы
-    rm -f arial.zip
-    echo "Шрифты Arial успешно установлены!"
+if [ -f "fonts/arial.ttf" ]; then
+    echo "✅ Шрифты Arial найдены в папке fonts/"
+    ls -l fonts/  # Вывод списка файлов для логов
+else
+    echo "❌ Ошибка: файл fonts/arial.ttf не найден!"
+    echo "Убедитесь, что вы добавили в репозиторий:"
+    echo "- fonts/arial.ttf"
+    echo "- fonts/arialbd.ttf"
+    echo "- fonts/ariali.ttf"
+    echo "- fonts/arialbi.ttf"
+    exit 1  # Прерываем сборку при ошибке
 fi
 
-echo "=== Installing dependencies ==="
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+# 2. Установка прав доступа (важно для Render.com)
+chmod 644 fonts/*
 
+# 3. Установка Python-зависимостей
+echo "=== Установка Python-зависимостей ==="
+python -m pip install --upgrade pip
+pip install --cache-dir=.pip_cache -r requirements.txt
+
+# 4. TextBlob (если нужно)
 if grep -q "textblob" requirements.txt; then
-    echo "=== Installing TextBlob corpora ==="
     python -m textblob.download_corpora
 fi
+
+echo "=== Сборка успешно завершена ==="
